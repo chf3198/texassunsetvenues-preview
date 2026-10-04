@@ -288,12 +288,12 @@
           const res = await fetch(this.URLs.KNOWLEDGE_BASE);
           if (!res.ok) throw new Error('Failed to fetch knowledge base');
           this.State.knowledgeBase = await res.json();
-          // The live knowledge base still points River RV's TSV Direct link at Bird House.
-          // Correct that one known mistake before Sunny quotes it.
-          const river = this.State.knowledgeBase?.specific_listings_info?.river_rv;
-          const birdHouseUrl = 'https://book.texassunsetvenues.com/smithville/romantic-glamping-retreat/73d466';
-          if (river?.links?.TSV_direct === birdHouseUrl) {
-            river.links.TSV_direct = 'https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?';
+          // TSV Direct links come from src/data/direct-booking.json (filled in at build time),
+          // not from the knowledge-base worker. This also fixes the worker's wrong River RV link.
+          const directUrls = {"river_rv":"https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?","bird_house":"https://book.texassunsetvenues.com/smithville/romantic-glamping-retreat/73d466","sea_la_vie":"https://txsunsetvenues.bookeddirectly.com/g/freeport/sea-la-vie/9257c6"};
+          for (const [key, url] of Object.entries(directUrls)) {
+            const listing = this.State.knowledgeBase?.specific_listings_info?.[key];
+            if (listing?.links) listing.links.TSV_direct = url;
           }
         } catch (err) {
           console.error('Knowledge base load failed:', err);
