@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta name="robots" content="noindex,nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sunny</title>
+</head>
+<body>
+<!-- External Libraries -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@14.0.0/marked.min.js" crossorigin="anonymous"></script> <!-- Added marked.js for Markdown to HTML conversion -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Chat Interface -->
+<div id="chat-container" class="container position-relative d-none">
+  <div id="context-size-display" class="context-display d-none">Context: <span id="token-count">0</span> tokens</div>
+  <div id="model-selection" class="context-display model-selection d-none">
+    Model: <select id="model-select" multiple></select>
+  </div>
+  <div class="chat-header text-center mb-2"><h2 class="m-0">Welcome, <span id="user-name-display"></span>!</h2></div>
+  <div id="chat-window" class="border p-2 overflow-auto bg-white" style="height: 400px;"></div>
+  <div class="chat-input-container d-flex mt-2">
+    <input type="text" id="user-input" class="form-control me-2" placeholder="Type your message...">
+    <button id="send-button" class="btn btn-primary">Send</button>
+  </div>
+  <div class="chat-footer text-end mt-1"><a href="#" id="new-chat-link" class="small text-primary">New Chat</a></div>
+</div>
+
+<!-- Registration Form -->
+<div id="registration-container" class="mx-auto my-4" style="max-width: 400px;">
+  <h2>Start Chatting with Sunny!</h2>
+  <form id="registration-form">
+    <div class="mb-3">
+      <label for="user-name" class="form-label">Your Name:</label>
+      <input type="text" id="user-name" class="form-control" required placeholder="Enter your name">
+      <div id="name-error" class="invalid-feedback d-none">Name is required.</div>
+    </div>
+    <div class="mb-3">
+      <label for="user-email" class="form-label">Your Email:</label>
+      <input type="email" id="user-email" class="form-control" required placeholder="Enter a valid email address">
+      <div id="email-error" class="invalid-feedback d-none">Valid email is required.</div>
+    </div>
+    <button id="start-chat-button" class="btn btn-primary w-100">Start Chat</button>
+  </form>
+</div>
+
+<!-- TOS Modal -->
+<div class="modal fade" id="tosModal">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Terms of Service</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>By using Sunny, the AI Support Assistant provided by Texas Sunset Venues Inc., you agree to the following terms:</p>
+        <ul>
+          <li><strong>Data Privacy:</strong> Your personal information is collected solely for the purpose of facilitating your interaction with Sunny. We do not share your data with third parties.</li>
+          <li><strong>Termination:</strong> Texas Sunset Venues Inc. reserves the right to modify or terminate Sunny at any time without prior notice.</li>
+          <li><strong>Acceptance:</strong> By clicking "Accept," you confirm that you have read, understood, and agree to these terms.</li>
+        </ul>
+        <p>Do you agree to these terms and wish to continue using Sunny?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="tosAcceptBtn" class="btn btn-primary">Accept</button>
+        <button type="button" id="tosDeclineBtn" class="btn btn-secondary" data-bs-dismiss="modal">Decline</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Chat Confirmation Modal -->
+<div class="modal fade" id="modal-overlay">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        <p>Starting a new chat will erase your current chat history, and you will need to provide your name and email again. Do you want to continue?</p>
+        <button id="modal-yes" class="btn btn-primary">Yes</button>
+        <button id="modal-no" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Error Message -->
+<div id="error-message" class="alert alert-danger alert-dismissible fade show position-fixed top-0 end-0 m-3 d-none" role="alert">
+  <span id="error-text"></span>
+  <button type="button" class="btn-close" id="close-error"></button>
+</div>
+
+<style>
+  body { font-family: 'Roboto', sans-serif; }
+  #chat-container { height: 600px; }
+  .context-display { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: #fff; padding: 5px 10px; border-radius: 4px; font-size: 12px; z-index: 100; }
+  .model-selection { right: 10px; left: auto; }
+  #model-select { width: 200px; height: 30px; } /* Added basic styling for native multi-select */
+  .dot-typing::after { content: ''; animation: typing 1.5s steps(4, end) infinite; }
+  @keyframes typing { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+  #chat-window div { white-space: pre-wrap; margin-bottom: 10px; padding: 10px; border-radius: 5px; max-width: 80%; }
+  #chat-window .user { background-color: #e1ffc7; margin-left: auto; }
+  #chat-window .assistant { background-color: #f1f0f0; margin-right: auto; }
+  #chat-window p { margin: 0.25rem 0; line-height: 1.2; } /* Reduce line spacing in responses */
+</style>
+
+<script>
+  (function() {
+    const ChatAssistant = {
+      URLs: {
+        CHAT: 'https://tsv-chat-proxy.chf3198.workers.dev/chat',
+        HANDSHAKE: 'https://tsv-chat-proxy.chf3198.workers.dev/handshake',
+        KNOWLEDGE_BASE: 'https://tsv-knowledge-base.chf3198.workers.dev/knowledge-base'
+      },
+      State: {
+        conversationId: localStorage.getItem('tsv_conversationId') || `conversation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        conversation: JSON.parse(localStorage.getItem('tsv_conversation') || '[]'),
+        defaultModelConfig: { temperature: 0.7, top_p: 0.8, frequency_penalty: 1.5, presence_penalty: 0.5, max_tokens: 1000000 },
+        models: {
+          'nvidia/llama-3.3-nemotron-super-49b-v1:free': { temperature: 0.7, frequency_penalty: 1.5 },
+          'microsoft/mai-ds-r1:free': { temperature: 0.6, frequency_penalty: 1.2 },
+          'deepseek/deepseek-r1-0528:free': { temperature: 0.8, frequency_penalty: 1.0 },
+          'tngtech/deepseek-r1t-chimera:free': { temperature: 0.9, frequency_penalty: 1.3 },
+          'deepseek/deepseek-v3-base:free': { temperature: 0.7, frequency_penalty: 1.5 }
+        },
+        knowledgeBase: null,
+        isAdminMode: false,
+        MAX_TOKENS: 64000
+      },
+      Elements: {},
+      init() {
+        localStorage.setItem('tsv_conversationId', this.State.conversationId);
+        this.Elements = {
+          chatContainer: $('#chat-container'),
+          chatWindow: $('#chat-window'),
+          userInput: $('#user-input'),
+          sendButton: $('#send-button'),
+          newChatLink: $('#new-chat-link'),
+          registrationContainer: $('#registration-container'),
+          userName: $('#user-name'),
+          userEmail: $('#user-email'),
+          nameError: $('#name-error'),
+          emailError: $('#email-error'),
+          startChatButton: $('#start-chat-button'),
+          userNameDisplay: $('#user-name-display'),
+          modalOverlay: $('#modal-overlay'),
+          modalYes: $('#modal-yes'),
+          tosModal: $('#tosModal'),
+          tosAccept: $('#tosAcceptBtn'),
+          tosDecline: $('#tosDeclineBtn'),
+          errorMessage: $('#error-message'),
+          errorText: $('#error-text'),
+          closeError: $('#close-error'),
+          tokenCount: $('#token-count'),
+          modelSelect: $('#model-select'),
+          contextSizeDisplay: $('#context-size-display'),
+          modelSelection: $('#model-selection')
+        };
+        this.bindEvents();
+        this.checkRegistration();
+      },
+      bindEvents() {
+        const e = this.Elements;
+        e.chatWindow.on('click', 'a', ev => { ev.preventDefault(); window.open(ev.target.href, '_blank'); });
+        e.startChatButton.on('click', ev => { ev.preventDefault(); this.handleRegistration(); });
+        e.sendButton.on('click', () => this.handleSendMessage());
+        e.userInput.on('keypress', ev => { if (ev.key === 'Enter') this.handleSendMessage(); });
+        e.newChatLink.on('click', ev => { ev.preventDefault(); e.modalOverlay.modal('show'); });
+        e.modalYes.on('click', () => this.confirmNewChat());
+        e.tosAccept.on('click', () => this.handleTOS(true));
+        e.tosDecline.on('click', () => this.handleTOS(false));
+        e.closeError.on('click', () => e.errorMessage.addClass('d-none'));
+        e.modelSelect.on('change', () => {
+          localStorage.setItem('tsv_selectedModels', JSON.stringify(Array.from(e.modelSelect[0].selectedOptions).map(opt => opt.value) || []));
+          this.updateTokenCount();
+        });
+      },
+      checkRegistration() {
+        const name = localStorage.getItem('tsv_userName');
+        const email = localStorage.getItem('tsv_userEmail');
+        const tos = localStorage.getItem('tsv_tos_agreed') === 'true';
+        if (name && email && tos) {
+          this.State.userName = name;
+          this.State.userEmail = email;
+          this.Elements.userNameDisplay.text(name);
+          this.showChat();
+        } else {
+          this.Elements.registrationContainer.removeClass('d-none');
+        }
+      },
+      handleRegistration() {
+        const name = this.Elements.userName.val().trim();
+        const email = this.Elements.userEmail.val().trim();
+        this.Elements.nameError.toggleClass('d-none', !!name);
+        this.Elements.emailError.toggleClass('d-none', /\S+@\S+\.\S+/.test(email));
+        if (!name || !/\S+@\S+\.\S+/.test(email)) return this.showError('Please enter a valid name and email.');
+        localStorage.setItem('tsv_userName', name);
+        localStorage.setItem('tsv_userEmail', email);
+        this.State.userName = name;
+        this.State.userEmail = email;
+        this.Elements.userNameDisplay.text(name);
+        this.Elements.tosModal.modal('show');
+      },
+      showChat() {
+        this.Elements.registrationContainer.addClass('d-none');
+        this.Elements.chatContainer.removeClass('d-none');
+        if (!this.State.conversation.length) this.initializeConversation();
+        this.renderConversation();
+        this.performHandshake();
+        this.updateTokenCount();
+      },
+      handleSendMessage() {
+        const msg = this.Elements.userInput.val().trim();
+        if (!msg) return;
+        if (msg.toLowerCase() === 'admin mode') {
+          this.State.isAdminMode = true;
+          this.Elements.contextSizeDisplay.removeClass('d-none');
+          this.Elements.modelSelection.removeClass('d-none');
+          this.addMessage('assistant', 'Admin mode activated.');
+          return;
+        }
+        this.addMessage('user', msg);
+        this.State.conversation.push({ sender: 'user', role: 'user', content: msg });
+        this.saveConversation();
+        this.Elements.userInput.val('');
+        this.showTypingIndicator();
+        this.sendMessageToApi().finally(() => this.hideTypingIndicator());
+      },
+      confirmNewChat() {
+        localStorage.clear();
+        this.State.conversation = [];
+        this.State.conversationId = `conversation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('tsv_conversationId', this.State.conversationId);
+        this.Elements.chatWindow.empty();
+        this.Elements.modalOverlay.modal('hide');
+        this.Elements.chatContainer.addClass('d-none');
+        this.Elements.registrationContainer.removeClass('d-none');
+      },
+      handleTOS(accepted) {
+        this.Elements.tosModal.modal('hide');
+        if (accepted) {
+          localStorage.setItem('tsv_tos_agreed', 'true');
+          this.showChat();
+        } else {
+          alert('You must agree to the Terms of Service.');
+          location.reload();
+        }
+      },
+      addMessage(sender, msg) {
+        const prefix = sender === 'user' ? 'You' : 'Sunny';
+        const parsedMsg = marked.parse(msg); // Convert Markdown to HTML
+        const html = DOMPurify.sanitize(`${prefix}: ${parsedMsg}`);
+        this.Elements.chatWindow.append(`<div class="${sender}">${html}</div>`);
+        this.scrollToBottom();
+      },
+      renderConversation() {
+        this.Elements.chatWindow.html(this.State.conversation.map(m => {
+          const prefix = m.sender === 'user' ? 'You' : 'Sunny';
+          const parsedContent = marked.parse(m.content); // Convert Markdown to HTML
+          const html = DOMPurify.sanitize(`${prefix}: ${parsedContent}`);
+          return `<div class="${m.sender}">${html}</div>`;
+        }).join(''));
+        this.scrollToBottom();
+      },
+      initializeConversation() {
+        const greeting = `Hello ${this.State.userName || 'Guest'}! I am Sunny 😊, your AI assistant. How can I help you today?`;
+        this.State.conversation.push({ sender: 'assistant', role: 'assistant', content: greeting });
+        this.addMessage('assistant', greeting);
+        this.saveConversation();
+      },
+      scrollToBottom() {
+        const cw = this.Elements.chatWindow[0];
+        cw.scrollTop = cw.scrollHeight;
+      },
+      showTypingIndicator() {
+        this.Elements.chatWindow.append('<div id="typing-indicator" class="assistant"><em>Sunny is typing<span class="dot-typing"></span></em></div>');
+        this.scrollToBottom();
+      },
+      hideTypingIndicator() {
+        $('#typing-indicator').remove();
+      },
+      saveConversation() {
+        localStorage.setItem('tsv_conversation', JSON.stringify(this.State.conversation));
+      },
+      async loadKnowledgeBase() {
+        try {
+          const res = await fetch(this.URLs.KNOWLEDGE_BASE);
+          if (!res.ok) throw new Error('Failed to fetch knowledge base');
+          this.State.knowledgeBase = await res.json();
+          // The live knowledge base still points River RV's TSV Direct link at Bird House.
+          // Correct that one known mistake before Sunny quotes it.
+          const river = this.State.knowledgeBase?.specific_listings_info?.river_rv;
+          const birdHouseUrl = 'https://book.texassunsetvenues.com/smithville/romantic-glamping-retreat/73d466';
+          if (river?.links?.TSV_direct === birdHouseUrl) {
+            river.links.TSV_direct = 'https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?';
+          }
+        } catch (err) {
+          console.error('Knowledge base load failed:', err);
+          this.showError('Failed to load knowledge base. Some answers may be limited.');
+        }
+      },
+      performHandshake() {
+        fetch(this.URLs.HANDSHAKE).then(res => res.json()).then(data => {
+          if (data.status === 'success' && data.details?.availableModels?.length) {
+            const models = data.details.availableModels.sort();
+            this.Elements.modelSelect.html(models.map(m => `<option value="${m}">${m.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>`));
+            const stored = JSON.parse(localStorage.getItem('tsv_selectedModels') || '[]');
+            const valid = stored.filter(m => models.includes(m));
+            models.forEach(model => {
+              if (valid.includes(model) || (!valid.length && Object.keys(this.State.models).includes(model))) {
+                this.Elements.modelSelect.find(`option[value="${model}"]`).prop('selected', true);
+              }
+            });
+            this.updateTokenCount();
+          }
+        }).catch(() => this.showError('Handshake failed.'));
+      },
+      async sendMessageToApi() {
+        if (!this.State.knowledgeBase) await this.loadKnowledgeBase();
+        if (!this.State.knowledgeBase) return;
+        const systemPrompt = this.generateSystemPrompt();
+        let messages = [{ role: 'system', content: systemPrompt }, ...this.State.conversation.map(m => ({ role: m.role, content: m.content }))];
+        if (this.estimateTokens(messages) > this.State.MAX_TOKENS - 500) {
+          this.truncateConversation();
+          messages = [{ role: 'system', content: systemPrompt }, ...this.State.conversation.map(m => ({ role: m.role, content: m.content }))];
+        }
+        const models = Object.keys(this.State.models);
+        for (const model of models) {
+          const config = { ...this.State.defaultModelConfig, ...this.State.models[model] };
+          try {
+            const res = await fetch(this.URLs.CHAT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model, messages, config })
+            });
+            const data = await res.json();
+            if (data.reply) {
+              this.State.conversation.push({ sender: 'assistant', role: 'assistant', content: data.reply });
+              this.addMessage('assistant', data.reply);
+              this.saveConversation();
+              this.updateTokenCount();
+              return;
+            }
+          } catch {}
+        }
+        this.showError('All models failed to respond.');
+      },
+      generateSystemPrompt() {
+        const kb = this.State.knowledgeBase;
+        const capitalize = w => w.charAt(0).toUpperCase() + w.slice(1);
+        const formatSection = (sec, indent = 0) => Object.entries(sec).map(([k, v]) => {
+          const ind = '  '.repeat(indent);
+          if (typeof v === 'object' && !Array.isArray(v)) return `${ind}- **${capitalize(k)}:**\n${formatSection(v, indent + 1)}`;
+          if (Array.isArray(v)) return `${ind}- **${capitalize(k)}:**\n${v.map(i => `${ind}  - ${i}`).join('\n')}\n`;
+          return `${ind}- **${capitalize(k)}:** ${v}\n`;
+        }).join('');
+        const general = formatSection(kb.all_listings_general_info);
+        const smithville = formatSection(kb.smithville_listings_general_info);
+        const listings = Object.values(kb.specific_listings_info).map(l => {
+          const { name, links, details } = l;
+          return `**${name}:**\n**Description:** ${details.gen_desc}\n**Links:** [${name} TSV Direct](${links.TSV_direct}) | [${name} Airbnb](${links.airbnb}) | [${name} VRBO](${links.vrbo}) | [${name} Guide Book](${links.guide_book})\n${formatSection(details, 1)}`;
+        }).join('\n\n');
+        const instructions = kb.instructions; // Treat as string since it's not an object
+        return `You're Sunny 😊, the AI assistant and salesperson for Texas Sunset Venues, specializing in short-term vacation rentals. Your primary goal is to provide concise, factual, and actionable information while encouraging users to book accommodations.
+Follow these guidelines:
+
+1. **Focus on Real-World Actions**:
+  - Avoid simulated processes or hypothetical scenarios.
+  - Provide direct instructions for real-world actions, such as using booking links or contacting the host.
+
+2. **Conciseness**:
+  - Responses must be very short, ideally 3-5 sentences maximum. Keep them brief and to the point.
+  - Avoid unnecessary elaboration unless explicitly requested by the user. Do not include timelines, summaries of conversation, or suggested user replies.
+
+3. **Booking Assistance**:
+  - When a user expresses interest in booking, provide the relevant booking links and instructions.
+  - Example:
+    - "To book the River RV, please use one of the following links:
+     - TSV Direct: 
+      [Book on TSV Direct](https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?)
+     - Airbnb: 
+      [Book on Airbnb](https://airbnb.com/h/hsriverrv)
+     - VRBO: 
+      [Book on VRBO](https://www.vrbo.com/2865080?dateless=true)
+    - For assistance, contact the host at txsunsetvenues@yahoo.com."
+
+4. **Avoid Repetition**:
+  - Do not repeat information already provided unless the user asks for clarification.
+
+5. **User-Centric Responses**:
+  - Tailor responses to the user's specific questions or needs.
+  - Avoid offering additional information unless it directly answers the user's query. Do not suggest example responses or specific phrases for the user to say next.
+
+6. **Prohibited Actions**:
+  - Do not simulate booking processes or request user details like check-in dates or guest counts.
+  - Do not ask users to provide information that should be entered directly on booking platforms.
+
+By following these guidelines, ensure that your responses are helpful, efficient, and aligned with real-world booking processes. Your wording, grammar, formatting, and style should be geared towards readability. Use well-formatted text, optimal emojis, and even Markdown elements like **bold** for bold, *italics* for italics, - for unordered lists, 1. for ordered lists, ## for headings, and | for tables where appropriate to organize information clearly and enhance readability at an 11th-grade level. Always format links as clickable Markdown [text](url) that open in a new tab. Do not use HTML tags; always use Markdown syntax instead. This is critical because responses are converted to HTML from Markdown. For example, use **bold text** instead of <strong>bold text</strong>. Use *italic text* instead of <em>italic text</em>. Use - list item for lists instead of <ul><li>. Use ## Heading for headings. For tables, use | Header | \n|------|\n| Cell |.
+
+The user's name is ${this.State.userName || 'Guest'}.
+
+**General Information:**
+${general}
+
+**Smithville Listings General Information:**
+${smithville}
+
+**Listings Information:**
+${listings}
+
+**Instructions:**
+${instructions}`;
+      },
+      estimateTokens(messages) {
+        return messages.reduce((t, m) => t + (m.content.match(/\S+/g)?.length || 0), 0);
+      },
+      truncateConversation() {
+        while (this.estimateTokens(this.State.conversation) > this.State.MAX_TOKENS - 500 && this.State.conversation.length > 1) this.State.conversation.shift();
+      },
+      updateTokenCount() {
+        if (!this.State.knowledgeBase) return;
+        const messages = [{ content: this.generateSystemPrompt() }, ...this.State.conversation];
+        const tokens = this.estimateTokens(messages);
+        this.Elements.tokenCount.text(tokens).css('color', tokens > this.State.MAX_TOKENS ? 'red' : '#000');
+      },
+      showError(msg) {
+        this.Elements.errorText.text(msg);
+        this.Elements.errorMessage.removeClass('d-none');
+      }
+    };
+    $(document).ready(() => ChatAssistant.init());
+  })();
+</script>
+</body>
+</html>
