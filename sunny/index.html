@@ -290,7 +290,7 @@
           this.State.knowledgeBase = await res.json();
           // TSV Direct links come from src/data/direct-booking.json (filled in at build time),
           // not from the knowledge-base worker. This also fixes the worker's wrong River RV link.
-          const directUrls = {"river_rv":"https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?","bird_house":"https://book.texassunsetvenues.com/smithville/romantic-glamping-retreat/73d466","sea_la_vie":"https://txsunsetvenues.bookeddirectly.com/g/freeport/sea-la-vie/9257c6"};
+          const directUrls = {"river_rv":"https://txsunsetvenues.bookeddirectly.com/g/smithville/colorado-river-romance/09767d","bird_house":"https://txsunsetvenues.bookeddirectly.com/g/smithville/romantic-glamping-retreat/73d466","sea_la_vie":"https://txsunsetvenues.bookeddirectly.com/g/freeport/sea-la-vie/9257c6"};
           for (const [key, url] of Object.entries(directUrls)) {
             const listing = this.State.knowledgeBase?.specific_listings_info?.[key];
             if (listing?.links) listing.links.TSV_direct = url;
@@ -378,7 +378,7 @@ Follow these guidelines:
   - Example:
     - "To book the River RV, please use one of the following links:
      - TSV Direct: 
-      [Book on TSV Direct](https://book.texassunsetvenues.com/smithville/colorado-river-romance/09767d?)
+      [Book on TSV Direct](https://txsunsetvenues.bookeddirectly.com/g/smithville/colorado-river-romance/09767d)
      - Airbnb: 
       [Book on Airbnb](https://airbnb.com/h/hsriverrv)
      - VRBO: 
